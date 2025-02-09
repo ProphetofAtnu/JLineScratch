@@ -17,6 +17,11 @@ public record IncrementalToken(
         @Nullable String content,
         boolean complete) {
 
+    /**
+     * Format the token's content or a representation of the token for printing.
+     *
+     * @return A string that visually represents the token
+     */
     public String contentForDisplay() {
         if (content != null) {
             if (kind == Kind.DISPATCH) {
