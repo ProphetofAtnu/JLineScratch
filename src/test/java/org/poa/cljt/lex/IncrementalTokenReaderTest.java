@@ -74,6 +74,7 @@ class IncrementalTokenReaderTest {
                 new IncrementalToken(IncrementalToken.Kind.MAP_CLOSE, null, true),
                 new IncrementalToken(IncrementalToken.Kind.VECTOR_OPEN, null, true),
                 new IncrementalToken(IncrementalToken.Kind.VECTOR_CLOSE, null, true),
+                new IncrementalToken(IncrementalToken.Kind.TOKEN, "asdf", true),
                 new IncrementalToken(IncrementalToken.Kind.META, null, true),
                 new IncrementalToken(IncrementalToken.Kind.TOKEN, "asdf", true),
                 new IncrementalToken(IncrementalToken.Kind.QUOTE, null, true),
@@ -92,7 +93,7 @@ class IncrementalTokenReaderTest {
                 new IncrementalToken(IncrementalToken.Kind.STRING, "\"this is", false)
         );
         PushbackReader rdr = new PushbackReader(new StringReader("""
-                (this "is" a \\return test 1234 +1234 -1234 + - asdf #{} {} [] ^asdf 'asdf `asdf ~asdf ~@asdf) ; test
+                (this "is" a \\return test 1234 +1234 -1234 + - asdf #{} {} [] asdf^asdf 'asdf `asdf ~asdf ~@asdf) ; test
                 "this is"""));
         IncrementalTokenReader reader = new IncrementalTokenReader();
         IncrementalToken token;

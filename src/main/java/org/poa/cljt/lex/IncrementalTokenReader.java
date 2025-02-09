@@ -20,6 +20,7 @@ public class IncrementalTokenReader {
     static {
         macroCharTable['+'] = PendingKind.TOKEN_OR_NUMBER;
         macroCharTable['-'] = PendingKind.TOKEN_OR_NUMBER;
+
         macroCharTable['"'] = PendingKind.STRING;
         macroCharTable[';'] = PendingKind.COMMENT;
         macroCharTable['\''] = PendingKind.QUOTE;
@@ -36,6 +37,7 @@ public class IncrementalTokenReader {
         macroCharTable['\\'] = PendingKind.CHARACTER;
         macroCharTable['%'] = PendingKind.ARG;
         macroCharTable['#'] = PendingKind.DISPATCH;
+
         macroCharTable['0'] = PendingKind.NUMBER;
         macroCharTable['1'] = PendingKind.NUMBER;
         macroCharTable['2'] = PendingKind.NUMBER;
@@ -49,44 +51,12 @@ public class IncrementalTokenReader {
     }
 
     private static boolean isMacroChar(int ch) {
-        return switch (ch) {
-            case '"' -> true;
-            case ';' -> true;
-            case '\'' -> true;
-            case '@' -> true;
-            case '^' -> true;
-            case '`' -> true;
-            case '~' -> true;
-            case '(' -> true;
-            case ')' -> true;
-            case '[' -> true;
-            case ']' -> true;
-            case '{' -> true;
-            case '}' -> true;
-            case '\\' -> true;
-            case '%' -> true;
-            case '#' -> true;
-            default -> false;
-        };
+        return !Character.isDigit(ch) && ch != '+' && ch != '-'
+                && ch < macroCharTable.length && macroCharTable[ch] != null;
     }
 
     private static boolean isTerminatingMacroChar(int ch) {
-        return switch (ch) {
-            case '"' -> true;
-            case ';' -> true;
-            case '@' -> true;
-            case '^' -> true;
-            case '`' -> true;
-            case '~' -> true;
-            case '(' -> true;
-            case ')' -> true;
-            case '[' -> true;
-            case ']' -> true;
-            case '{' -> true;
-            case '}' -> true;
-            case '\\' -> true;
-            default -> false;
-        };
+        return ch != '#' && ch != '\'' && ch != '%' && isMacroChar(ch);
     }
 
     private static boolean isBasicTerminal(int ch) {
