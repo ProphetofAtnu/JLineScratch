@@ -63,6 +63,7 @@ public class IncrementalTokenReader {
         return ch == -1 || ch == ',' || Character.isWhitespace(ch) || isMacroChar(ch);
     }
 
+    // TODO: Make private
     public int advanceToDispatchCharacter(PushbackReader reader) throws IOException {
         while (true) {
             int c = reader.read();
@@ -153,6 +154,8 @@ public class IncrementalTokenReader {
 
     private IncrementalToken readNumber(PushbackReader reader, int c1) throws IOException {
         assert Character.isDigit(c1) || c1 == '+' || c1 == '-';
+        // TODO: Validate numbers
+        // TODO: Check completeness
 
         StringBuilder sb = new StringBuilder();
         sb.append((char) c1);
@@ -246,6 +249,7 @@ public class IncrementalTokenReader {
      * @return The token
      */
     public IncrementalToken readToken(PushbackReader reader) throws IOException {
+        // TODO: Track offsets (requires state)
         var dispatchChar = advanceToDispatchCharacter(reader);
         var pendingKind = classifyDispatchCharacter(dispatchChar);
 
@@ -265,6 +269,7 @@ public class IncrementalTokenReader {
             case CLOSE -> readClose(dispatchChar);
             case ARG -> new IncrementalToken(IncrementalToken.Kind.ARG, null, true);
             case DISPATCH -> readDispatch(reader, dispatchChar);
+            // TODO: Remove (Probably)
             case INVALID ->
                     new IncrementalToken(IncrementalToken.Kind.UNKNOWN, String.valueOf((char) dispatchChar), true);
             case EOF -> new IncrementalToken(IncrementalToken.Kind.EOF, null, true);

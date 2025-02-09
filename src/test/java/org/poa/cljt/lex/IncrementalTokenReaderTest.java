@@ -14,9 +14,9 @@ class IncrementalTokenReaderTest {
     record TestItem<E>(String input, E expected) {
     }
 
-    @org.junit.jupiter.api.Test
+    @Test
     void advanceToDispatchCharacter() {
-        TestItem<Integer>[] items = new TestItem[]{
+        var items = Arrays.asList(
                 new TestItem<>("    ()", (int) '('),
                 new TestItem<>("""
                         \t\t(     )""", (int) '('),
@@ -39,8 +39,8 @@ class IncrementalTokenReaderTest {
                 new TestItem<>("}", (int) '}'),
                 new TestItem<>("\\", (int) '\\'),
                 new TestItem<>("%", (int) '%'),
-                new TestItem<>("#", (int) '#'),
-        };
+                new TestItem<>("#", (int) '#')
+        );
         IncrementalTokenReader reader = new IncrementalTokenReader();
         for (var item : items) {
             PushbackReader rdr = new PushbackReader(new StringReader(item.input));
