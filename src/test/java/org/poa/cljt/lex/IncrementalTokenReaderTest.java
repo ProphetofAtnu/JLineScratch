@@ -62,7 +62,7 @@ class IncrementalTokenReaderTest {
         Clojure (as of 1.12.0) form with a comment:
 
         ```
-        (this "is" a \\return test 1234 +1234 -1234 + - asdf #{} {} [] asdf^asdf 'asdf `asdf ~asdf ~@asdf) ; test
+        (this "is" a \return test 1234 +1234 -1234 + - asdf #{} {} [] asdf^asdf 'asdf `asdf ~asdf ~@asdf) ; test
         ```
 
         Which expands to:
@@ -74,9 +74,11 @@ class IncrementalTokenReaderTest {
 
         More tests may be added if other partial token constructs are used.
         */
-        PushbackReader rdr = new PushbackReader(new StringReader("""
+        var input = """
                 (this "is" a \\return test 1234 +1234 -1234 + - asdf #{} {} [] asdf^asdf 'asdf `asdf ~asdf ~@asdf) ; test
-                "this is"""));
+                "this is""";
+        System.out.println(input);
+        PushbackReader rdr = new PushbackReader(new StringReader(input));
 
         List<IncrementalToken> tokens = Arrays.asList(
                 new IncrementalToken(IncrementalToken.Kind.LIST_OPEN, null, true),
@@ -116,15 +118,31 @@ class IncrementalTokenReaderTest {
                         """, true),
                 new IncrementalToken(IncrementalToken.Kind.STRING, "\"this is", false)
         );
+        long[] advances = new long[]{
+                1, 5, 10, 12, 20, 25, 30, 36, 42, 44,
+                46, 51, 53, 54, 55, 57, 58, 60, 61,
+                66, 67, 71, 73, 77, 79, 83, 85, 89,
+                91, 92, 96, 97, 105, 113
+        };
         IncrementalTokenReader reader = new IncrementalTokenReader();
         IncrementalToken token;
         int ctr = 0;
         while ((token = reader.readToken(rdr)).kind() != IncrementalToken.Kind.EOF) {
+            var adv = reader.getAdvance();
             System.out.println(token);
+            System.out.println(adv);
             Assertions.assertEquals(tokens.get(ctr), token);
+            Assertions.assertEquals(advances[ctr], adv);
+            Assertions.assertEquals(input.substring((int) (adv - token.actualTokenLength()), (int) adv), token.contentOrRepr());
             ctr++;
         }
         Assertions.assertEquals(IncrementalToken.Kind.EOF, reader.readToken(rdr).kind());
+        Assertions.assertEquals(input.length(), reader.getAdvance());
+
+        reader.resetState();
+
+        Assertions.assertEquals(0, reader.getAdvance());
+
     }
 
 }

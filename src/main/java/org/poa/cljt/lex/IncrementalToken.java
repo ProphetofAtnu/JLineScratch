@@ -47,6 +47,36 @@ public record IncrementalToken(
         }
     }
 
+    @Nullable
+    public String contentOrRepr() {
+        return switch (kind) {
+            case DEREF -> "@";
+            case DISPATCH -> "#";
+            case LIST_OPEN -> "(";
+            case LIST_CLOSE -> ")";
+            case MAP_OPEN -> "{";
+            case MAP_CLOSE -> "}";
+            case VECTOR_OPEN -> "[";
+            case VECTOR_CLOSE -> "]";
+            case META -> "^";
+            case QUOTE -> "'";
+            case SYNTAX_QUOTE -> "`";
+            case UNQUOTE -> "~";
+            case EOF -> null;
+            default -> content;
+        };
+    }
+
+    public int actualTokenLength() {
+        if (content != null) {
+            return content.length();
+        } else if (kind == Kind.EOF) {
+            return 0;
+        }
+
+        return 1;
+    }
+
     @Override
     public String toString() {
         return "IncrementalToken{" +

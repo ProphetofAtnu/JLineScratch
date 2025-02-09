@@ -50,6 +50,31 @@ public class IncrementalTokenReader {
         macroCharTable['9'] = PendingKind.NUMBER;
     }
 
+    private long advance = 0;
+
+    public long getAdvance() {
+        return advance;
+    }
+
+    public void resetState() {
+        advance = 0;
+
+    }
+
+    private int read(PushbackReader rdr) throws IOException {
+        int out = rdr.read();
+        advance += out == -1 ? 0 : 1;
+        return out;
+    }
+
+    private void unread(PushbackReader rdr, int ch) throws IOException {
+        if (ch != -1) {
+            rdr.unread(ch);
+            advance--;
+        }
+    }
+
+
     private static boolean isMacroChar(int ch) {
         return !Character.isDigit(ch) && ch != '+' && ch != '-'
                 && ch < macroCharTable.length && macroCharTable[ch] != null;
@@ -66,7 +91,7 @@ public class IncrementalTokenReader {
     // TODO: Make private
     public int advanceToDispatchCharacter(PushbackReader reader) throws IOException {
         while (true) {
-            int c = reader.read();
+            int c = read(reader);
             if (c == -1) {
                 return c;
             }
@@ -106,9 +131,9 @@ public class IncrementalTokenReader {
         sb.append((char) ch1);
 
         while (true) {
-            int ch = reader.read();
+            int ch = read(reader);
             if (ch == -1 || ch == ',' || Character.isWhitespace(ch) || isTerminatingMacroChar(ch)) {
-                reader.unread(ch);
+                unread(reader, ch);
                 return new IncrementalToken(IncrementalToken.Kind.TOKEN, sb.toString(), true);
             }
             sb.append((char) ch);
@@ -116,7 +141,7 @@ public class IncrementalTokenReader {
     }
 
     private IncrementalToken readBasicTokenOrNumber(PushbackReader reader, int c1, int c2) throws IOException {
-        reader.unread(c2);
+        unread(reader, c2);
         if (indeterminateCharIsNumber(c1, c2)) {
             return readNumber(reader, c1);
         }
@@ -128,17 +153,16 @@ public class IncrementalTokenReader {
         boolean isComplete = false;
         StringBuilder sb = new StringBuilder();
         sb.append((char) c1);
-        for (int c = reader.read(); c != -1; c = reader.read()) {
+        for (int c = read(reader); c != -1; c = read(reader)) {
             if (c == '"') {
                 isComplete = true;
                 sb.append((char) c);
                 break;
             } else if (c == '\\') {
                 sb.append((char) c);
-                c = reader.read();
+                c = read(reader);
                 if (c == -1) {
-                    reader.unread(c);
-
+                    unread(reader, c);
                     break;
                 } else {
                     sb.append((char) c);
@@ -146,7 +170,6 @@ public class IncrementalTokenReader {
             } else {
                 sb.append((char) c);
             }
-
         }
 
         return new IncrementalToken(IncrementalToken.Kind.STRING, sb.toString(), isComplete);
@@ -161,9 +184,9 @@ public class IncrementalTokenReader {
         sb.append((char) c1);
 
         while (true) {
-            int ch = reader.read();
+            int ch = read(reader);
             if (isBasicTerminal(ch)) {
-                reader.unread(ch);
+                unread(reader, ch);
                 break;
             }
             sb.append((char) ch);
@@ -178,9 +201,9 @@ public class IncrementalTokenReader {
         sb.append((char) c1);
 
         while (true) {
-            int ch = reader.read();
+            int ch = read(reader);
             if (ch == -1 || ch == ',' || Character.isWhitespace(ch) || isTerminatingMacroChar(ch)) {
-                reader.unread(ch);
+                unread(reader, ch);
                 return new IncrementalToken(IncrementalToken.Kind.CHARACTER, sb.toString(), true);
             }
             sb.append((char) ch);
@@ -192,7 +215,7 @@ public class IncrementalTokenReader {
         StringBuilder sb = new StringBuilder();
         sb.append((char) c1);
 
-        for (int c = reader.read(); c != -1; c = reader.read()) {
+        for (int c = read(reader); c != -1; c = read(reader)) {
             sb.append((char) c);
             if (c == '\n' || c == '\r') {
                 break;
@@ -203,13 +226,13 @@ public class IncrementalTokenReader {
 
     private IncrementalToken readDispatch(PushbackReader reader, int c1) throws IOException {
         assert c1 == '#';
-        int nextChar = reader.read();
+        int nextChar = read(reader);
         if (nextChar == -1) {
-            reader.unread(nextChar);
+            unread(reader, nextChar);
             return new IncrementalToken(IncrementalToken.Kind.DISPATCH, null, false);
         }
         if (nextChar == '(' || nextChar == '{') {
-            reader.unread(nextChar);
+            unread(reader, nextChar);
         }
 
         return new IncrementalToken(IncrementalToken.Kind.DISPATCH, Character.toString(nextChar), true);
@@ -249,13 +272,14 @@ public class IncrementalTokenReader {
      * @return The token
      */
     public IncrementalToken readToken(PushbackReader reader) throws IOException {
-        // TODO: Track offsets (requires state)
         var dispatchChar = advanceToDispatchCharacter(reader);
+        if (dispatchChar == -1) {
+            return new IncrementalToken(IncrementalToken.Kind.EOF, null, true);
+        }
         var pendingKind = classifyDispatchCharacter(dispatchChar);
-
         return switch (pendingKind) {
             case TOKEN -> readBasicToken(reader, dispatchChar);
-            case TOKEN_OR_NUMBER -> readBasicTokenOrNumber(reader, dispatchChar, reader.read());
+            case TOKEN_OR_NUMBER -> readBasicTokenOrNumber(reader, dispatchChar, read(reader));
             case STRING -> readString(reader, dispatchChar);
             case NUMBER -> readNumber(reader, dispatchChar);
             case CHARACTER -> readCharacter(reader, dispatchChar);
@@ -273,8 +297,8 @@ public class IncrementalTokenReader {
             case INVALID ->
                     new IncrementalToken(IncrementalToken.Kind.UNKNOWN, String.valueOf((char) dispatchChar), true);
             case EOF -> new IncrementalToken(IncrementalToken.Kind.EOF, null, true);
-        };
 
+        };
     }
 
     public enum PendingKind {
