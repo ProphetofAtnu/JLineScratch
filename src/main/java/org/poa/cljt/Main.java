@@ -28,7 +28,8 @@ public class Main {
             var lreader = LineReaderBuilder.builder()
                     .appName("demo")
                     .terminal(terminal)
-                    .completer(new CljCompleter())
+                    .completer(complete)
+//                    .parser(new CljParser())
                     .build();
 
             var lne = lreader.readLine("demo> ");
