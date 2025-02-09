@@ -1,59 +1,18 @@
 package org.poa.cljt.lex;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.io.IOException;
 import java.io.PushbackReader;
 
-public class IncrementalReader {
-    public enum PendingKind {
-        TOKEN,
-        TOKEN_OR_NUMBER,
-        STRING,
-        NUMBER,
-        CHARACTER,
-        COMMENT,
-        QUOTE,
-        UNQUOTE,
-        DEREF,
-        META,
-        SYNTAX_QUOTE,
-        OPEN,
-        CLOSE,
-        ARG,
-        DISPATCH,
-        INVALID,
-        EOF
-    }
-
-    public enum Kind {
-        TOKEN,
-        STRING,
-        NUMBER,
-        CHARACTER,
-        COMMENT,
-        QUOTE,
-        UNQUOTE,
-        DEREF,
-        META,
-        SYNTAX_QUOTE,
-        LIST_OPEN,
-        LIST_CLOSE,
-        VECTOR_OPEN,
-        VECTOR_CLOSE,
-        MAP_OPEN,
-        MAP_CLOSE,
-        ARG,
-        DISPATCH,
-        EOF,
-        UNKNOWN
-    }
-
-    public record Token(
-            Kind kind,
-            @Nullable String content,
-            boolean complete) {
-    }
+/**
+ * Used to tokenize a potentially incomplete form.
+ * This IncrementalReader only performs the tokenization task,
+ * after which the tokens must be validated for correctness.
+ * <p>
+ * This class is currently stateless, however it may be worth keeping a
+ * state at some point, so I'm only making a subset of the utility functions
+ * static.
+ */
+public class IncrementalTokenReader {
 
 
     private static final PendingKind[] macroCharTable = new PendingKind[256];
@@ -134,10 +93,6 @@ public class IncrementalReader {
         return ch == -1 || ch == ',' || Character.isWhitespace(ch) || isMacroChar(ch);
     }
 
-//    private static boolean isMacroTerminal(int ch) {
-//        return ch == -1 || ch == ',' || Character.isWhitespace(ch) || isMacroChar(ch);
-//    }
-
     public int advanceToDispatchCharacter(PushbackReader reader) throws IOException {
         while (true) {
             int c = reader.read();
@@ -153,7 +108,7 @@ public class IncrementalReader {
         }
     }
 
-    public PendingKind classifyDispatchCharacter(int c) {
+    private PendingKind classifyDispatchCharacter(int c) {
         if (c == -1) {
             return PendingKind.EOF;
         }
@@ -175,7 +130,7 @@ public class IncrementalReader {
         return Character.isDigit(ch2);
     }
 
-    private Token readBasicToken(PushbackReader reader, int ch1) throws IOException {
+    private IncrementalToken readBasicToken(PushbackReader reader, int ch1) throws IOException {
         StringBuilder sb = new StringBuilder();
         sb.append((char) ch1);
 
@@ -183,13 +138,13 @@ public class IncrementalReader {
             int ch = reader.read();
             if (ch == -1 || ch == ',' || Character.isWhitespace(ch) || isTerminatingMacroChar(ch)) {
                 reader.unread(ch);
-                return new Token(Kind.TOKEN, sb.toString(), true);
+                return new IncrementalToken(IncrementalToken.Kind.TOKEN, sb.toString(), true);
             }
             sb.append((char) ch);
         }
     }
 
-    private Token readBasicTokenOrNumber(PushbackReader reader, int c1, int c2) throws IOException {
+    private IncrementalToken readBasicTokenOrNumber(PushbackReader reader, int c1, int c2) throws IOException {
         reader.unread(c2);
         if (indeterminateCharIsNumber(c1, c2)) {
             return readNumber(reader, c1);
@@ -197,7 +152,7 @@ public class IncrementalReader {
         return readBasicToken(reader, c1);
     }
 
-    private Token readString(PushbackReader reader, int c1) throws IOException {
+    private IncrementalToken readString(PushbackReader reader, int c1) throws IOException {
         assert c1 == '"';
         boolean isComplete = false;
         StringBuilder sb = new StringBuilder();
@@ -214,18 +169,19 @@ public class IncrementalReader {
                     reader.unread(c);
 
                     break;
+                } else {
+                    sb.append((char) c);
                 }
-                sb.append((char) c);
             } else {
                 sb.append((char) c);
             }
 
         }
 
-        return new Token(Kind.STRING, sb.toString(), isComplete);
+        return new IncrementalToken(IncrementalToken.Kind.STRING, sb.toString(), isComplete);
     }
 
-    private Token readNumber(PushbackReader reader, int c1) throws IOException {
+    private IncrementalToken readNumber(PushbackReader reader, int c1) throws IOException {
         assert Character.isDigit(c1) || c1 == '+' || c1 == '-';
 
         StringBuilder sb = new StringBuilder();
@@ -240,10 +196,10 @@ public class IncrementalReader {
             sb.append((char) ch);
         }
 
-        return new Token(Kind.NUMBER, sb.toString(), true);
+        return new IncrementalToken(IncrementalToken.Kind.NUMBER, sb.toString(), true);
     }
 
-    private Token readCharacter(PushbackReader reader, int c1) throws IOException {
+    private IncrementalToken readCharacter(PushbackReader reader, int c1) throws IOException {
         assert c1 == '\\';
         StringBuilder sb = new StringBuilder();
         sb.append((char) c1);
@@ -252,13 +208,13 @@ public class IncrementalReader {
             int ch = reader.read();
             if (ch == -1 || ch == ',' || Character.isWhitespace(ch) || isTerminatingMacroChar(ch)) {
                 reader.unread(ch);
-                return new Token(Kind.CHARACTER, sb.toString(), true);
+                return new IncrementalToken(IncrementalToken.Kind.CHARACTER, sb.toString(), true);
             }
             sb.append((char) ch);
         }
     }
 
-    private Token readComment(PushbackReader reader, int c1) throws IOException {
+    private IncrementalToken readComment(PushbackReader reader, int c1) throws IOException {
         assert c1 == ';';
         StringBuilder sb = new StringBuilder();
         sb.append((char) c1);
@@ -269,43 +225,43 @@ public class IncrementalReader {
                 break;
             }
         }
-        return new Token(Kind.COMMENT, sb.toString(), true);
+        return new IncrementalToken(IncrementalToken.Kind.COMMENT, sb.toString(), true);
     }
 
-    private Token readDispatch(PushbackReader reader, int c1) throws IOException {
+    private IncrementalToken readDispatch(PushbackReader reader, int c1) throws IOException {
         assert c1 == '#';
         int nextChar = reader.read();
         if (nextChar == -1) {
             reader.unread(nextChar);
-            return new Token(Kind.DISPATCH, null, false);
+            return new IncrementalToken(IncrementalToken.Kind.DISPATCH, null, false);
         }
         if (nextChar == '(' || nextChar == '{') {
             reader.unread(nextChar);
         }
 
-        return new Token(Kind.DISPATCH, Character.toString(nextChar), true);
+        return new IncrementalToken(IncrementalToken.Kind.DISPATCH, Character.toString(nextChar), true);
     }
 
 
-    private Token readOpen(int c1) {
+    private IncrementalToken readOpen(int c1) {
 
-        return new Token(
+        return new IncrementalToken(
                 switch (c1) {
-                    case '(' -> Kind.LIST_OPEN;
-                    case '[' -> Kind.VECTOR_OPEN;
-                    case '{' -> Kind.MAP_OPEN;
+                    case '(' -> IncrementalToken.Kind.LIST_OPEN;
+                    case '[' -> IncrementalToken.Kind.VECTOR_OPEN;
+                    case '{' -> IncrementalToken.Kind.MAP_OPEN;
                     default -> throw new IllegalStateException("Non-open character passed to readOpen: " + c1);
                 },
                 null, true
         );
     }
 
-    private Token readClose(int c1) {
-        return new Token(
+    private IncrementalToken readClose(int c1) {
+        return new IncrementalToken(
                 switch (c1) {
-                    case ')' -> Kind.LIST_CLOSE;
-                    case '}' -> Kind.MAP_CLOSE;
-                    case ']' -> Kind.VECTOR_CLOSE;
+                    case ')' -> IncrementalToken.Kind.LIST_CLOSE;
+                    case '}' -> IncrementalToken.Kind.MAP_CLOSE;
+                    case ']' -> IncrementalToken.Kind.VECTOR_CLOSE;
                     default -> throw new IllegalStateException("Non-open character passed to readOpen: " + c1);
                 },
                 null, true
@@ -313,7 +269,13 @@ public class IncrementalReader {
     }
 
 
-    public Token readToken(PushbackReader reader) throws IOException {
+    /**
+     * Advances a PushbackReader and extracts an IncrementalToken object.
+     *
+     * @param reader the source reader
+     * @return The token
+     */
+    public IncrementalToken readToken(PushbackReader reader) throws IOException {
         var dispatchChar = advanceToDispatchCharacter(reader);
         var pendingKind = classifyDispatchCharacter(dispatchChar);
 
@@ -324,18 +286,39 @@ public class IncrementalReader {
             case NUMBER -> readNumber(reader, dispatchChar);
             case CHARACTER -> readCharacter(reader, dispatchChar);
             case COMMENT -> readComment(reader, dispatchChar);
-            case QUOTE -> new Token(Kind.QUOTE, null, true);
-            case UNQUOTE -> new Token(Kind.UNQUOTE, null, true);
-            case DEREF -> new Token(Kind.DEREF, null, true);
-            case META -> new Token(Kind.META, null, true);
-            case SYNTAX_QUOTE -> new Token(Kind.SYNTAX_QUOTE, null, true);
+            case QUOTE -> new IncrementalToken(IncrementalToken.Kind.QUOTE, null, true);
+            case UNQUOTE -> new IncrementalToken(IncrementalToken.Kind.UNQUOTE, null, true);
+            case DEREF -> new IncrementalToken(IncrementalToken.Kind.DEREF, null, true);
+            case META -> new IncrementalToken(IncrementalToken.Kind.META, null, true);
+            case SYNTAX_QUOTE -> new IncrementalToken(IncrementalToken.Kind.SYNTAX_QUOTE, null, true);
             case OPEN -> readOpen(dispatchChar);
             case CLOSE -> readClose(dispatchChar);
-            case ARG -> new Token(Kind.ARG, null, true);
+            case ARG -> new IncrementalToken(IncrementalToken.Kind.ARG, null, true);
             case DISPATCH -> readDispatch(reader, dispatchChar);
-            case INVALID -> new Token(Kind.UNKNOWN, String.valueOf((char) dispatchChar), true);
-            case EOF -> new Token(Kind.EOF, null, true);
+            case INVALID ->
+                    new IncrementalToken(IncrementalToken.Kind.UNKNOWN, String.valueOf((char) dispatchChar), true);
+            case EOF -> new IncrementalToken(IncrementalToken.Kind.EOF, null, true);
         };
 
+    }
+
+    public enum PendingKind {
+        TOKEN,
+        TOKEN_OR_NUMBER,
+        STRING,
+        NUMBER,
+        CHARACTER,
+        COMMENT,
+        QUOTE,
+        UNQUOTE,
+        DEREF,
+        META,
+        SYNTAX_QUOTE,
+        OPEN,
+        CLOSE,
+        ARG,
+        DISPATCH,
+        INVALID,
+        EOF
     }
 }
